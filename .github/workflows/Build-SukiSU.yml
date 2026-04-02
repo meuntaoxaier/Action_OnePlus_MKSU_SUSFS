@@ -191,6 +191,35 @@ jobs:
           export KSU_VERSION=$KSU_VERSION
           sed -i "s/DKSU_VERSION=12800/DKSU_VERSION=${KSU_VERSION}/" kernel/Makefile
 
+      - name: Validate SUSFS branch availability
+        run: |
+          ANDROID_VERSION="${{ github.event.inputs.ANDROID_VERSION }}"
+          KERNEL_VERSION="${{ github.event.inputs.KERNEL_VERSION }}"
+          SUSFS_BRANCH="gki-${ANDROID_VERSION}-${KERNEL_VERSION}"
+
+          # Known valid SUSFS branch mappings (android version -> kernel versions)
+          declare -A VALID_BRANCHES=(
+            ["gki-android12-5.10"]=1
+            ["gki-android13-5.10"]=1
+            ["gki-android13-5.15"]=1
+            ["gki-android14-5.15"]=1
+            ["gki-android14-6.1"]=1
+            ["gki-android15-6.6"]=1
+            ["gki-android16-6.12"]=1
+          )
+
+          if [[ -z "${VALID_BRANCHES[$SUSFS_BRANCH]}" ]]; then
+            echo "::error::SUSFS branch '${SUSFS_BRANCH}' is not a valid combination."
+            echo "Valid ANDROID_VERSION and KERNEL_VERSION combinations are:"
+            echo "  android12 + 5.10"
+            echo "  android13 + 5.10 or 5.15"
+            echo "  android14 + 5.15 or 6.1"
+            echo "  android15 + 6.6"
+            echo "  android16 + 6.12"
+            exit 1
+          fi
+          echo "✅ SUSFS branch '${SUSFS_BRANCH}' is valid."
+
       - name: Apply Patches SukiSU Ultra
         run: |
           cd kernel_workspace
