@@ -191,6 +191,13 @@ jobs:
           export KSU_VERSION=$KSU_VERSION
           sed -i "s/DKSU_VERSION=12800/DKSU_VERSION=${KSU_VERSION}/" kernel/Makefile
 
+      - name: Checkout repository for local SUSFS patches
+        uses: actions/checkout@v4
+        with:
+          path: repo_src
+          sparse-checkout: |
+            susfsandroid16-6.1
+
       - name: Validate SUSFS branch availability
         run: |
           ANDROID_VERSION="${{ github.event.inputs.ANDROID_VERSION }}"
@@ -205,6 +212,7 @@ jobs:
             ["gki-android14-5.15"]=1
             ["gki-android14-6.1"]=1
             ["gki-android15-6.6"]=1
+            ["gki-android16-6.1"]=1
             ["gki-android16-6.12"]=1
           )
 
@@ -215,7 +223,7 @@ jobs:
             echo "  android13 + 5.10 or 5.15"
             echo "  android14 + 5.15 or 6.1"
             echo "  android15 + 6.6"
-            echo "  android16 + 6.12"
+            echo "  android16 + 6.1 or 6.12"
             exit 1
           fi
           echo "✅ SUSFS branch '${SUSFS_BRANCH}' is valid."
@@ -223,11 +231,22 @@ jobs:
       - name: Apply Patches SukiSU Ultra
         run: |
           cd kernel_workspace
-          git clone https://gitlab.com/simonpunk/susfs4ksu.git -b gki-${{ github.event.inputs.ANDROID_VERSION }}-${{ github.event.inputs.KERNEL_VERSION }}
+          ANDROID_VERSION="${{ github.event.inputs.ANDROID_VERSION }}"
+          KERNEL_VERSION="${{ github.event.inputs.KERNEL_VERSION }}"
+
+          # For android16-6.1, use local patches from this repo; otherwise clone from upstream
+          if [ "${ANDROID_VERSION}" = "android16" ] && [ "${KERNEL_VERSION}" = "6.1" ]; then
+            echo "使用本仓库的 susfsandroid16-6.1 补丁"
+            mkdir -p susfs4ksu/kernel_patches
+            cp -r "$GITHUB_WORKSPACE/repo_src/susfsandroid16-6.1/kernel_patches/"* susfs4ksu/kernel_patches/
+          else
+            git clone https://gitlab.com/simonpunk/susfs4ksu.git -b gki-${ANDROID_VERSION}-${KERNEL_VERSION}
+          fi
+
           git clone https://github.com/ShirkNeko/SukiSU_patch.git
           cd kernel_platform
           echo "正在给内核打susfs补丁"
-          cp ../susfs4ksu/kernel_patches/50_add_susfs_in_gki-${{ github.event.inputs.ANDROID_VERSION }}-${{ github.event.inputs.KERNEL_VERSION }}.patch ./common/
+          cp ../susfs4ksu/kernel_patches/50_add_susfs_in_gki-${ANDROID_VERSION}-${KERNEL_VERSION}.patch ./common/
           cp ../susfs4ksu/kernel_patches/fs/* ./common/fs/
           cp ../susfs4ksu/kernel_patches/include/linux/* ./common/include/linux/
 
@@ -240,7 +259,7 @@ jobs:
           fi
 
           cd ./common
-          patch -p1 < 50_add_susfs_in_gki-${{ github.event.inputs.ANDROID_VERSION }}-${{ github.event.inputs.KERNEL_VERSION }}.patch || true
+          patch -p1 < 50_add_susfs_in_gki-${ANDROID_VERSION}-${KERNEL_VERSION}.patch || true
           echo "完成"
 
       - name: Apply Hide Stuff Patches
