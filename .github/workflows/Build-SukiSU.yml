@@ -362,7 +362,9 @@ jobs:
             fi
           fi
 
-      - name: Build kernel
+      - name: Build kernel (Bazel)
+        id: bazel_build
+        continue-on-error: true
         run: |
           cd kernel_workspace
           if [ -f ./kernel_platform/build_with_bazel.py ]; then
@@ -371,9 +373,17 @@ jobs:
             fi
             ./kernel_platform/build_with_bazel.py -t ${{ github.event.inputs.CPUD }} ${{ github.event.inputs.BUILD_METHOD }}
           else
-            LTO=thin SYSTEM_DLKM_RE_SIGN=0 BUILD_SYSTEM_DLKM=0 KMI_SYMBOL_LIST_STRICT_MODE=0 \
-            ./kernel_platform/oplus/build/oplus_build_kernel.sh ${{ github.event.inputs.CPUD }} ${{ github.event.inputs.BUILD_METHOD }}
+            echo "build_with_bazel.py not found, skipping Bazel build"
+            exit 1
           fi
+
+      - name: Fallback to Build Kernel
+        if: steps.bazel_build.outcome == 'failure'
+        run: |
+          cd kernel_workspace
+          echo "Bazel build not available or failed, falling back to oplus_build_kernel.sh"
+          LTO=thin SYSTEM_DLKM_RE_SIGN=0 BUILD_SYSTEM_DLKM=0 KMI_SYMBOL_LIST_STRICT_MODE=0 \
+          ./kernel_platform/oplus/build/oplus_build_kernel.sh ${{ github.event.inputs.CPUD }} ${{ github.event.inputs.BUILD_METHOD }}
 
       - name: Make AnyKernel3
         run: |
